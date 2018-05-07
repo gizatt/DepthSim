@@ -4,13 +4,16 @@ sys.path.insert(0, '../')
 import numpy as np
 from scipy import misc
 from common import common
-from render import render_sim
 from director import vtkAll as vtk
 import yaml
 import time
 from director import vtkNumpy as vnp
 from director import filterUtils
-#from RGBDCNN import network
+from RGBDCNN import network
+import matplotlib.pyplot as plt
+from vtk.util import numpy_support
+
+
 
 def set_shader(mapper):
 	mapper.SetVertexShaderCode(
@@ -82,7 +85,7 @@ def vtkICP(model,scene):
  
 ### enumerate tests try only cluttered scenes
 objects_per_scene = 5
-path  = "/home/drc/DATA/chris_labelfusion/CORL2017/logs_test/"
+path  = "/media/drc/DATA/chris_labelfusion/CORL2017/logs_test/"
 paths = []
 for f in os.listdir(path):
 	if "2017" in f:
@@ -116,7 +119,7 @@ renderer1.SetViewport(0.5,0,1,1)
 camera1 = vtk.vtkCamera()
 renderer1.SetActiveCamera(camera1);
 renWin.AddRenderer(renderer1);
-#common.set_up_camera_params(camera1)
+common.set_up_camera_params(camera1)
 renSource = vtk.vtkRendererSource()
 renSource.SetInput(renderer)
 renSource.WholeWindowOff()
@@ -126,19 +129,19 @@ renSource.Update()
 #####setup image filters
 filter1= vtk.vtkWindowToImageFilter()
 scale =vtk.vtkImageShiftScale()
-filter1.SetInput(renWin)
+filter1.SetInput(renderer)
 filter1.SetMagnification(1)
 filter1.SetInputBufferTypeToZBuffer()
 windowToColorBuffer = vtk.vtkWindowToImageFilter()
-windowToColorBuffer.SetInput(renWin)
+windowToColorBuffer.SetInput(renderer)
 windowToColorBuffer.SetInputBufferTypeToRGB()     
 scale.SetOutputScalarTypeToUnsignedShort()
 scale.SetScale(1000);
 
-out_dir = "/home/drc/DATA/chris_labelfusion/RGBDCNN/"
-object_dir = "/home/drc/DATA/chris_labelfusion/object-meshes"
+out_dir = "/media/drc/DATA/chris_labelfusion/RGBDCNN/"
+object_dir = "/media/drc/DATA/chris_labelfusion/object-meshes"
 
-out_file = "/home/drc/DATA/chris_labelfusion/RGBDCNN/stats.yaml"
+out_file = "/media/drc/DATA/chris_labelfusion/RGBDCNN/stats.yaml"
 stats = {}
 samples_per_run = 1
 
@@ -148,7 +151,7 @@ for i,j in paths[:1]:
   data_dir = path+i
   print data_dir
   data_dir_name =  os.path.basename(os.path.normpath(data_dir))
-  object_dir = "/home/drc/DATA/chris_labelfusion/object-meshes"
+  object_dir = "/media/drc/DATA/chris_labelfusion/object-meshes"
   mesh ='meshed_scene.ply'
 
   #####set up mesh
@@ -170,59 +173,81 @@ for i,j in paths[:1]:
 
   poses = common.CameraPoses(data_dir+"/posegraph.posegraph")
   for i in np.random.choice(range(1,500),samples_per_run):
-  		#object_to_fit.VisibilityOn()
 
-      # try:
-		utimeFile = open(data_dir+"/images/"+ str(i).zfill(10) + "_utime.txt", 'r')
-		utime = int(utimeFile.read())    
-
-		#update camera transform
-		cameraToCameraStart = poses.getCameraPoseAtUTime(utime)
-		t = cameraToCameraStart
-		common.setCameraTransform(camera, t)
-		#common.setCameraTransform(camera1, t)
-		renSource.Update()
+    utimeFile = open(data_dir+"/images/"+ str(i).zfill(10) + "_utime.txt", 'r')
+    utime = int(utimeFile.read())    
+    #update camera transform
+    cameraToCameraStart = poses.getCameraPoseAtUTime(utime)
+    t = cameraToCameraStart
+    common.setCameraTransform(camera, t)
+    common.setCameraTransform(camera1, t)
+    renSource.Update()
 
 		#get Depth image
-		reader = vtk.vtkPNGReader()
-		reader.SetFileName("/home/drc/DATA/chris_labelfusion/RGBDCNNTest/15predicted_depth.png")
-		reader.Update()
-		#img = reader.GetOutput().GetCellData().GetArray()
-		#print np.shape(img)
-		scale.SetInputConnection(reader.GetOutputPort())
-		im_map = vtk.vtkDataSetMapper()
-		im_map.SetInputConnection(scale.GetOutputPort())
-		im_map.Update()
+    reader = vtk.vtkPNGReader()
+    reader.SetFileName("/media/drc/DATA/chris_labelfusion/RGBDCNNTest/15predicted_depth.png")
+    reader.Update();writer = vtk.vtkPNGWriter();writer.SetFileName("/media/drc/DATA/chris_labelfusion/test3.png");writer.SetInputConnection(renSource.GetOutputPort());writer.Update()
+		
+    #update filters
+    filter1.Modified()
+    filter1.Update()
+    windowToColorBuffer.Modified()
+    windowToColorBuffer.Update()
+
+    #extract depth image
+    depthImage = vtk.vtkImageData()
+    pts = vtk.vtkPoints()
+    ptColors = vtk.vtkUnsignedCharArray()
+    vtk.vtkDepthImageUtils.DepthBufferToDepthImage(filter1.GetOutput(), windowToColorBuffer.GetOutput(), camera, depthImage, pts, ptColors)
+    scale.SetInputData(depthImage)
+    scale.Update()
+
+    model_path = "../models/net_depth_seg_v1.hdf5"
+    model = network.load_trained_model(weights_path = model_path)
+    threshold = .5
+    img_height,img_width = (480,640)
+    stack = np.zeros((1,img_height,img_width,1))
+    writer = vtk.vtkPNGWriter();
+    writer.SetFileName("/media/drc/DATA/chris_labelfusion/test3.png");
+    writer.SetInputData(scale.GetOutput());
+    writer.Update()
+    
+    vtk_array = scale.GetOutput().GetPointData().GetScalars()
+    components = vtk_array.GetNumberOfComponents()
+    print vtk_array
+    print components
+    print np.shape(numpy_support.vtk_to_numpy(vtk_array))
+    im = numpy_support.vtk_to_numpy(vtk_array)[307200:].reshape(img_height, img_width)/3500.
+    stack[0,:,:,0] = im
+    plt.imshow(im)
+    plt.show()
+    predicted_prob_map = model.predict_on_batch(stack)
+    network.apply_mask(predicted_prob_map,im,threshold)
 		#project depth into cloud
-		pc = vtk.vtkDepthImageToPointCloud()
+    pc = vtk.vtkDepthImageToPointCloud()
+    pc.SetInputConnection(renSource.GetOutputPort())
+    pc.SetCamera(renderer.GetActiveCamera()) 
+    pc.CullFarPointsOff()
+    pc.Update()
 
-		#pc.SetInputConnection(0,renSource.GetOutputPort())
-		pc.SetInputConnection(0,reader.GetOutputPort())
+    pcMapper = vtk.vtkPolyDataMapper()
+    pcMapper.SetInputConnection(pc.GetOutputPort())
+    pcActor = vtk.vtkActor()
+    pcActor.SetMapper(pcMapper);
+    renderer1.AddActor(pcActor);
 
-		pc.SetCamera(renderer1.GetActiveCamera())
-		pc.CullNearPointsOn()
-		#pc.CullFarPointsOn()
-		pc.ProduceVertexCellArrayOff()
-		pc.Update()
-		pcMapper = vtk.vtkPointGaussianMapper()##???
-		pcMapper.SetInputConnection(pc.GetOutputPort())
-		pcMapper.EmissiveOff()
-		pcMapper.SetScaleFactor(0.0)
-		pcActor = vtk.vtkActor()
-		pcActor.SetMapper(pcMapper)
-		renderer1.AddActor(pcActor)
-		imActor = vtk.vtkActor()
-		imActor.SetMapper(im_map)
-		#renderer1.AddActor(imActor)
+		# imActor = vtk.vtkActor()
+		# imActor.SetMapper(im_map)
+		# renderer1.AddActor(imActor)
 
-		scene = pcActor.GetMapper().GetInput()
+		#scene = pcActor.GetMapper().GetInput()
 		#model = object_to_fit.GetMapper().GetInput()
 		#object_to_fit.VisibilityOff()
 		# icp = vtkICP(scene,model)
 		# modelToSceneTransform = icp.GetLinearInverse()
 		# alignedModel = filterUtils.transformPolyData(model, modelToSceneTransform)
 		# print icp
-		renWin.Render()
+    renWin.Render()
 
   		#renderer1.RemoveActor(pcActor);
 
