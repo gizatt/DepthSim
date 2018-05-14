@@ -66,7 +66,7 @@ def viz_predicted_depth1(path,model_path,sleep =.1,filter_files= None,img_height
 
 	im1 = ax1.imshow(misc.imread(samples[0][1]))
 	im2 = ax2.imshow(misc.imread(samples[0][0]))
-	im3 = ax3.imshow(misc.imread(samples[0][0]))
+	im3 = ax3.imshow(misc.imread(samples[0][0])/3500.)
 	im4 = ax4.imshow(misc.imread(samples[0][2]))
 	plt.ion()
 
@@ -76,14 +76,12 @@ def viz_predicted_depth1(path,model_path,sleep =.1,filter_files= None,img_height
 		gtdepth = misc.imread(samples[i][0])/3500.
 		stack[0,:,:,0] = gtdepth
 		gt_copy = np.copy(gtdepth)
-
-
 		predicted_prob_map = model.predict_on_batch(stack)
 		network.apply_mask(predicted_prob_map,gtdepth,threshold)
 
 		im1.set_data(depth)
-		im2.set_data(gtdepth*4500)
-		im3.set_data(gt_copy*4500)
+		im2.set_data(gtdepth*3500)
+		im3.set_data(gt_copy)
 		im4.set_data(rgb)
 
 		if save_dir:

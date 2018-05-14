@@ -4,6 +4,7 @@ sys.path.insert(0, '../')
 import numpy as np
 from scipy import misc
 from common import common
+from common import util
 from director import vtkAll as vtk
 import yaml
 import time
@@ -13,7 +14,14 @@ from RGBDCNN import network
 import matplotlib.pyplot as plt
 from vtk.util import numpy_support
 
-
+def set_shader_input(mapper):
+  mapper.AddShaderReplacement(
+    vtk.vtkShader.Fragment,  #// in the fragment shader
+    "//VTK::Light::Impl", #// replace the normal block
+    True, #// before the standard replacements
+    "fragOutput0 = vec4((normalVCVSOutput.x+1)/2.0,(normalVCVSOutput.y+1)/2.0,(normalVCVSOutput.z+1)/2.0, 1);\n",
+    True #// only do it once
+    )
 
 def set_shader(mapper):
 	mapper.SetVertexShaderCode(
@@ -65,23 +73,6 @@ def set_shader(mapper):
     "  z_norm = clamp(z_norm, 0.f, 1.f);\n"
     "  colorOut = vec4(z_norm, z_norm, z_norm, 1.);\n"
     "}\n")
-
-
-def vtkICP(model,scene):
-		#set object prior loc here
-		icp = vtk.vtkIterativeClosestPointTransform()
-		icp.SetMaximumNumberOfIterations(10)
-		#icp.StartByMatchingCentroidsOn()
-		icp.SetSource(model)
-		icp.SetTarget(scene)
-		icp.GetLandmarkTransform().SetModeToRigidBody()
-		icp.Modified()
-		icp.Update()
-		mat = icp.GetMatrix()
-		t = vtk.vtkTransform()
-		t.PostMultiply()
-		t.SetMatrix(mat)
-		return t
  
 ### enumerate tests try only cluttered scenes
 objects_per_scene = 5
@@ -126,14 +117,14 @@ renSource.WholeWindowOff()
 renSource.DepthValuesOnlyOn()
 renSource.Update()
 
-#####setup image filters
+####setup filters
 filter1= vtk.vtkWindowToImageFilter()
 scale =vtk.vtkImageShiftScale()
-filter1.SetInput(renderer)
+filter1.SetInput(renWin)
 filter1.SetMagnification(1)
 filter1.SetInputBufferTypeToZBuffer()
 windowToColorBuffer = vtk.vtkWindowToImageFilter()
-windowToColorBuffer.SetInput(renderer)
+windowToColorBuffer.SetInput(renWin)
 windowToColorBuffer.SetInputBufferTypeToRGB()     
 scale.SetOutputScalarTypeToUnsignedShort()
 scale.SetScale(1000);
@@ -146,7 +137,7 @@ stats = {}
 samples_per_run = 1
 
 ###run through scenes
-for i,j in paths[:1]:
+for i,j in paths[:10]:
   #set file names
   data_dir = path+i
   print data_dir
@@ -166,34 +157,28 @@ for i,j in paths[:1]:
 
   #add objects
   objects = common.Objects(data_dir,object_dir)
-  objects.loadObjectMeshes("/registration_result.yaml",renderer1,keyword=None)
-  object_key = objects.objects.keys()[0]
-  object_to_fit = objects.objects[object_key]
-  ground_truth_pose = objects.poses[object_key]
 
   poses = common.CameraPoses(data_dir+"/posegraph.posegraph")
-  for i in np.random.choice(range(1,500),samples_per_run):
-
-    utimeFile = open(data_dir+"/images/"+ str(i).zfill(10) + "_utime.txt", 'r')
+  for l in np.random.choice(range(1,500),samples_per_run):
+    new_data_dir = '/media/drc/DATA/chris_labelfusion/RGBDCNN/'
+    utimeFile = open(data_dir+"/images/"+ str(l).zfill(10) + "_utime.txt", 'r')
     utime = int(utimeFile.read())    
+    depthFile = new_data_dir+ i+"/"+str(l).zfill(10) + "_depth.png"
+    normalFile = new_data_dir+i+"/"+ str(l).zfill(10) +"_"+i+"_normal_ground_truth.png"
     #update camera transform
     cameraToCameraStart = poses.getCameraPoseAtUTime(utime)
     t = cameraToCameraStart
     common.setCameraTransform(camera, t)
     common.setCameraTransform(camera1, t)
+    renWin.Render()
     renSource.Update()
 
-		#get Depth image
-    reader = vtk.vtkPNGReader()
-    reader.SetFileName("/media/drc/DATA/chris_labelfusion/RGBDCNNTest/15predicted_depth.png")
-    reader.Update();writer = vtk.vtkPNGWriter();writer.SetFileName("/media/drc/DATA/chris_labelfusion/test3.png");writer.SetInputConnection(renSource.GetOutputPort());writer.Update()
-		
     #update filters
     filter1.Modified()
     filter1.Update()
     windowToColorBuffer.Modified()
     windowToColorBuffer.Update()
-
+    
     #extract depth image
     depthImage = vtk.vtkImageData()
     pts = vtk.vtkPoints()
@@ -202,60 +187,103 @@ for i,j in paths[:1]:
     scale.SetInputData(depthImage)
     scale.Update()
 
+    #modify this for simulated depth
+    source = np.flip(np.reshape(numpy_support.vtk_to_numpy(renSource.GetOutput().GetPointData().GetScalars()),(480,640)),axis=0)
+
+    #modify this for real depth mask
+    source_real = np.copy(source)
+
+    #modify this for kunis methods
+    source_kuni = np.copy(source)
+
+    #simulate depth image
     model_path = "../models/net_depth_seg_v1.hdf5"
     model = network.load_trained_model(weights_path = model_path)
     threshold = .5
     img_height,img_width = (480,640)
-    stack = np.zeros((1,img_height,img_width,1))
-    writer = vtk.vtkPNGWriter();
-    writer.SetFileName("/media/drc/DATA/chris_labelfusion/test3.png");
-    writer.SetInputData(scale.GetOutput());
-    writer.Update()
-    
+    stack = np.zeros((1,img_height,img_width,1)) 
     vtk_array = scale.GetOutput().GetPointData().GetScalars()
-    components = vtk_array.GetNumberOfComponents()
-    print vtk_array
-    print components
-    print np.shape(numpy_support.vtk_to_numpy(vtk_array))
-    im = numpy_support.vtk_to_numpy(vtk_array)[307200:].reshape(img_height, img_width)/3500.
+    im = np.flip(numpy_support.vtk_to_numpy(vtk_array).reshape(img_height, 2*img_width)[:,:640]/3500.,axis = 0)
     stack[0,:,:,0] = im
-    plt.imshow(im)
-    plt.show()
     predicted_prob_map = model.predict_on_batch(stack)
-    network.apply_mask(predicted_prob_map,im,threshold)
-		#project depth into cloud
-    pc = vtk.vtkDepthImageToPointCloud()
-    pc.SetInputConnection(renSource.GetOutputPort())
-    pc.SetCamera(renderer.GetActiveCamera()) 
-    pc.CullFarPointsOff()
-    pc.Update()
+    network.apply_mask(predicted_prob_map,source,threshold)
+    im_depth_sim_vtk = vnp.numpyToImageData(np.reshape(source,(480,640,1)),vtktype=vtk.VTK_FLOAT)
 
-    pcMapper = vtk.vtkPolyDataMapper()
-    pcMapper.SetInputConnection(pc.GetOutputPort())
-    pcActor = vtk.vtkActor()
-    pcActor.SetMapper(pcMapper);
-    renderer1.AddActor(pcActor);
+    #simulate real
+    real_depth = misc.imread(depthFile)
+    source_real[real_depth==0]=0
+    real_depth_vtk = vnp.numpyToImageData(np.reshape(source_real,(480,640,1)),vtktype=vtk.VTK_FLOAT)
 
-		# imActor = vtk.vtkActor()
-		# imActor.SetMapper(im_map)
-		# renderer1.AddActor(imActor)
+    #simulate kunis
+    normals = util.ratio_from_normal(util.convert_rgb_normal(misc.imread(normalFile)))
+    source_kuni[normals<.5]=0
+    kuni_depth_vtk = vnp.numpyToImageData(np.reshape(source_kuni,(480,640,1)),vtktype=vtk.VTK_FLOAT)
 
-		#scene = pcActor.GetMapper().GetInput()
-		#model = object_to_fit.GetMapper().GetInput()
-		#object_to_fit.VisibilityOff()
-		# icp = vtkICP(scene,model)
-		# modelToSceneTransform = icp.GetLinearInverse()
-		# alignedModel = filterUtils.transformPolyData(model, modelToSceneTransform)
-		# print icp
-    renWin.Render()
+    #real simulation
+    source_sim = renSource.GetOutput()
 
-  		#renderer1.RemoveActor(pcActor);
+    iterate = zip([im_depth_sim_vtk,real_depth_vtk,kuni_depth_vtk,source_sim],["depthsim","realdepth","kunidepth","sim"])
+    for img,simtype in iterate:
+      objects.loadObjectMeshes("/registration_result.yaml",renderer1,keyword=None)
+      pc = vtk.vtkDepthImageToPointCloud()
+      pc.SetInputData(img)
+      pc.SetCamera(renderer.GetActiveCamera())
+      pc.ProduceColorScalarsOn()
+      pc.ProduceVertexCellArrayOn()
+      pc.CullFarPointsOn()
+      pc.CullNearPointsOff()
+      pc.Update()
 
+      pcMapper = vtk.vtkPolyDataMapper()
+      pcMapper.SetInputData(pc.GetOutput())
+      pcMapper.Update()
+      pcActor = vtk.vtkActor()
+      pcActor.SetMapper(pcMapper);
+      renderer1.AddActor(pcActor);
+      renWin.Render()
 
-  #renderer.RemoveAllViewProps();
-  #renderer1.RemoveAllViewProps();
+      scene = pcActor.GetMapper().GetInput()
+      objects.vtkICP(scene)
+      print "dumping data"
+      objects.dump_icp_results("/media/drc/DATA/chris_labelfusion/logs/test_"+str(i)+"_run_"+str(l)+"_"+simtype+".yaml")
+      objects.update_poses(renderer1)
+      renWin.Render()
+      objects.reset()
+      renderer1.RemoveAllViewProps();
 
+  renderer.RemoveAllViewProps();
   renWin.Render();
 renWin.Render();
 interactor.Start();
+
+
+
+def inverse_project(camera,depthImage):
+
+  imageWidth = 640
+  imageHeight = 480
+  aspectRatio = imageWidth/float(imageHeight);
+
+  depthData = np.zeros((imageHeight,imageWidth))
+
+  cameraToViewport = vnp.getNumpyFromTransform(camera.GetProjectionTransformMatrix(aspectRatio, 0, 1))
+  viewportToCamera = vnp.getNumpyFromTransform(camera.GetProjectionTransformMatrix(aspectRatio, 0, 1).inverse())
+  worldToCamera = vnp.getNumpyFromTransform(camera.GetViewTransformMatrix())
+  cameraToWorld = vnp.getNumpyFromTransform(camera.GetViewTransformMatrix().invers())
+
+  for y in range(img_height):
+    for x in range(img_width):
+      np.array = [(2*float(x)/imageWidth - 1,2*float(y)/imageHeight - 1,depthImage[y,x], 1.0)]
+      ptToCamera = viewportToCamera * ptToViewport;
+      w3 = 1.0 / ptToCamera[3];
+
+      ptToCamera[0] *= w3;
+      ptToCamera[1] *= w3;
+      ptToCamera[2] *= w3;
+      ptToCamera[3] = 1.0;
+
+      ptToWorld = cameraToWorld * ptToCamera;
+      depthData[y,x] = -ptToCamera[2];
+
+  return depthData  
 

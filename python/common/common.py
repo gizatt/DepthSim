@@ -2,6 +2,7 @@
 from director import transformUtils
 from director import ioUtils
 from director import filterUtils
+from director import transformUtils
 import numpy as np
 from director import vtkAll as vtk
 import Image
@@ -111,28 +112,102 @@ class Objects():
         self.path= path
         self.objects_file = objects_file
         self.objects = {} # dict of Actors
-        self.poses = {} # dict of Actors
-
+        self.poses = {}
+        self.poses_perturb = {}
+        self.icp_poses ={}
+        self.objectToFirstFrame={}
 
     def loadObjectMeshes(self,registrationResultFilename,renderer,shader=None,keyword=None):
+      self.registrationResultFilename = registrationResultFilename
       stream = file(self.path+registrationResultFilename)
       registrationResult = yaml.load(stream)
-      firstFrameToWorldTransform = getFirstFrameToWorldTransform(self.path+'/transforms.yaml')
+      self.firstFrameToWorldTransform = getFirstFrameToWorldTransform(self.path+'/transforms.yaml')
       for objName, data in registrationResult.iteritems():
           objectMeshFilename = self.objects_file+"/"+data['filename'] 
           if not keyword or keyword in objectMeshFilename:
-            objectToFirstFrame = transformUtils.transformFromPose(data['pose'][0], data['pose'][1])
+            self.poses[objName] = data['pose']
+            self.poses_perturb[objName] = data['pose']
+            self.poses_perturb[objName][1][0] += 0
+            self.objectToFirstFrame[objName] = transformUtils.transformFromPose(self.poses_perturb[objName][0], self.poses_perturb[objName][1])
             poly = ioUtils.readPolyData(objectMeshFilename)
-            poly = filterUtils.transformPolyData(poly, objectToFirstFrame)
+            poly = filterUtils.transformPolyData(poly, self.objectToFirstFrame[objName])
             mapper = vtk.vtkPolyDataMapper()
             if shader: shader(mapper)
             mapper.SetInputData(poly)
             actor = vtk.vtkActor()
             actor.SetMapper(mapper)
             renderer.AddActor(actor)
-            self.objects[objectMeshFilename] = actor
-            self.poses[objectMeshFilename] = data['pose']
+            self.objects[objName] = actor
 
+    def perturb_objects(self,rotx=1,roty=0,rotz=0,posex=0,posey=0,posez=0):
+      for key in self.objects.keys():
+          obj = self.objects[key] 
+          pose = self.poses[key][0]
+          orientation = self.poses[key][1]
+
+          # obj.SetPosition(pose[0]+posex, pose[1]+posey, pose[2]+posez)
+          # obj.RotateX(orientation[0]+rotx)
+          # obj.RotateY(orientation[1]+roty)
+          # obj.RotateZ(orientation[2]+rotz)
+
+    def vtkICP(self, scene):
+      for key in self.objects.keys():
+        print key
+        obj = self.objects[key]
+        model = obj.GetMapper().GetInput()
+        #set object prior loc here
+        icp = vtk.vtkIterativeClosestPointTransform()
+        icp.SetMaximumNumberOfIterations(10)
+        #icp.StartByMatchingCentroidsOn()
+        icp.SetSource(model)
+        icp.SetTarget(scene)
+        icp.GetLandmarkTransform().SetModeToRigidBody()
+        icp.Modified()
+        icp.Update()
+        mat = icp.GetMatrix()
+        t = vtk.vtkTransform()
+        t.PostMultiply()
+        t.SetMatrix(mat)
+        modelToSceneTransform = t.GetLinearInverse()
+        alignedModel = filterUtils.transformPolyData(model, modelToSceneTransform)
+        new_pose = transformUtils.concatenateTransforms([self.objectToFirstFrame[key],modelToSceneTransform])
+        pos,quat = transformUtils.poseFromTransform(new_pose)
+        pos,quat = pos.tolist(),quat.tolist()
+        self.icp_poses[key] = [pos,quat]
+
+    def update_poses(self,renderer):
+      stream = file(self.path+self.registrationResultFilename)
+      registrationResult = yaml.load(stream)
+      for objName, data in registrationResult.iteritems():
+        if objName in self.icp_poses:# pose to update
+          objectMeshFilename = self.objects_file+"/"+data['filename'] 
+          objectToFirstFrame = transformUtils.transformFromPose(self.icp_poses[objName][0], self.icp_poses[objName][1])
+          poly = ioUtils.readPolyData(objectMeshFilename)
+          poly = filterUtils.transformPolyData(poly, objectToFirstFrame)
+          mapper = vtk.vtkPolyDataMapper()
+          mapper.SetInputData(poly)
+          actor = self.objects[objName]
+          renderer.RemoveActor(actor)
+          actor.SetMapper(mapper)
+          renderer.AddActor(actor)
+    
+    def reset(self):
+        self.objects = {} # dict of Actors
+        self.poses = {}
+        self.poses_perturb = {}
+        self.icp_poses ={}
+        self.objectToFirstFrame={}
+
+
+    def dump_icp_results(self,data_file='data.yml'):
+        outfile = open(data_file, 'w')
+        data={}
+        data["ground_truth_pose"] = self.poses
+        data["post_icp_pose"] = self.icp_poses 
+        print self.poses
+        print self.icp_poses
+        yaml.dump(data, outfile, default_flow_style=False)
+        outfile.close()
 
 '''
 def point_cloud_to_mesh():
