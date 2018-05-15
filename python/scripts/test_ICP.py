@@ -137,7 +137,7 @@ stats = {}
 samples_per_run = 1
 
 ###run through scenes
-for i,j in paths[:10]:
+for i,j in paths[1:10]:
   #set file names
   data_dir = path+i
   print data_dir
@@ -245,7 +245,7 @@ for i,j in paths[:10]:
       scene = pcActor.GetMapper().GetInput()
       objects.vtkICP(scene)
       print "dumping data"
-      objects.dump_icp_results("/media/drc/DATA/chris_labelfusion/logs/test_"+str(i)+"_run_"+str(l)+"_"+simtype+".yaml")
+      objects.dump_icp_results("/media/drc/DATA/chris_labelfusion/logs1/test_"+str(i)+"_run_"+str(l)+"_"+simtype+".yaml")
       objects.update_poses(renderer1)
       renWin.Render()
       objects.reset()
