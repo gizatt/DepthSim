@@ -187,8 +187,14 @@ for i,j in paths[1:10]:
     scale.SetInputData(depthImage)
     scale.Update()
 
+    #source = np.flip(np.reshape(numpy_support.vtk_to_numpy(renSource.GetOutput().GetPointData().GetScalars()),(480,640)),axis=0)
+
+
     #modify this for simulated depth
     source = np.flip(np.reshape(numpy_support.vtk_to_numpy(renSource.GetOutput().GetPointData().GetScalars()),(480,640)),axis=0)
+    
+    #modify this for simulated depth
+    depthsim_source = np.copy(source)
 
     #modify this for real depth mask
     source_real = np.copy(source)
@@ -206,8 +212,8 @@ for i,j in paths[1:10]:
     im = np.flip(numpy_support.vtk_to_numpy(vtk_array).reshape(img_height, 2*img_width)[:,:640]/3500.,axis = 0)
     stack[0,:,:,0] = im
     predicted_prob_map = model.predict_on_batch(stack)
-    network.apply_mask(predicted_prob_map,source,threshold)
-    im_depth_sim_vtk = vnp.numpyToImageData(np.reshape(source,(480,640,1)),vtktype=vtk.VTK_FLOAT)
+    network.apply_mask(predicted_prob_map,depthsim_source,threshold)
+    im_depth_sim_vtk = vnp.numpyToImageData(np.reshape(depthsim_source,(480,640,1)),vtktype=vtk.VTK_FLOAT)
 
     #simulate real
     real_depth = misc.imread(depthFile)
@@ -216,11 +222,11 @@ for i,j in paths[1:10]:
 
     #simulate kunis
     normals = util.ratio_from_normal(util.convert_rgb_normal(misc.imread(normalFile)))
-    source_kuni[normals<.5]=0
+    source_kuni[normals<.3]=0
     kuni_depth_vtk = vnp.numpyToImageData(np.reshape(source_kuni,(480,640,1)),vtktype=vtk.VTK_FLOAT)
 
     #real simulation
-    source_sim = renSource.GetOutput()
+    source_sim = vnp.numpyToImageData(np.reshape(source,(480,640,1)),vtktype=vtk.VTK_FLOAT)
 
     iterate = zip([im_depth_sim_vtk,real_depth_vtk,kuni_depth_vtk,source_sim],["depthsim","realdepth","kunidepth","sim"])
     for img,simtype in iterate:
@@ -244,10 +250,10 @@ for i,j in paths[1:10]:
 
       scene = pcActor.GetMapper().GetInput()
       objects.vtkICP(scene)
-      print "dumping data"
-      objects.dump_icp_results("/media/drc/DATA/chris_labelfusion/logs1/test_"+str(i)+"_run_"+str(l)+"_"+simtype+".yaml")
       objects.update_poses(renderer1)
       renWin.Render()
+      print "dumping data"
+      objects.dump_icp_results("/media/drc/DATA/chris_labelfusion/logs_final/test_"+str(i)+"_run_"+str(l)+"_"+simtype+".yaml")
       objects.reset()
       renderer1.RemoveAllViewProps();
 

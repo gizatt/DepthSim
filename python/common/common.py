@@ -130,6 +130,10 @@ class Objects():
             self.poses_perturb[objName][0][0] += .02
             self.poses_perturb[objName][0][1] += .02
             self.poses_perturb[objName][0][2] += .02
+            self.poses_perturb[objName][1][0] += .02
+            self.poses_perturb[objName][1][1] += .02
+            self.poses_perturb[objName][1][2] += .02
+            self.poses_perturb[objName][1][3] += .02
 
             self.objectToFirstFrame[objName] = transformUtils.transformFromPose(self.poses_perturb[objName][0], self.poses_perturb[objName][1])
             poly = ioUtils.readPolyData(objectMeshFilename)
@@ -160,7 +164,7 @@ class Objects():
         model = obj.GetMapper().GetInput()
         #set object prior loc here
         icp = vtk.vtkIterativeClosestPointTransform()
-        icp.SetMaximumNumberOfIterations(1)
+        icp.SetMaximumNumberOfIterations(5)
         #icp.StartByMatchingCentroidsOn()
         icp.SetSource(model)
         icp.SetTarget(scene)
