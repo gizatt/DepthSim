@@ -7,6 +7,7 @@ import data
 import network
 import glob
 import scipy
+import time
 
 def viz_predicted_depth(path,model_path,sleep =.1,filter_files= None,img_height=480,img_width=640,save_dir = None): #add file filter for specific logs
 	model = network.load_trained_model(weights_path = model_path)
