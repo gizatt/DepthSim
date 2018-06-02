@@ -1,15 +1,15 @@
-from director import mainwindowapp
+#from director import mainwindowapp
 from director import robotsystem
-from director import applogic as app
-from director import consoleapp
+#from director import applogic as app
+#from director import consoleapp
 from director import transformUtils
-from director import mainwindowapp
+#from director import mainwindowapp
 from director import filterUtils
-from director import depthscanner
+#from director import depthscanner
 from director import ioUtils
-from director import visualization as vis
+#from director import visualization as vis
 import numpy as np
-from director import objectmodel as om
+#from director import objectmodel as om
 from director import vtkAll as vtk
 import Image
 from common import common

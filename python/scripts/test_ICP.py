@@ -137,7 +137,7 @@ stats = {}
 samples_per_run = 1
 
 ###run through scenes
-for i,j in paths[1:10]:
+for i,j in paths[1:50]:
   #set file names
   data_dir = path+i
   print data_dir
@@ -227,6 +227,8 @@ for i,j in paths[1:10]:
 
     #real simulation
     source_sim = vnp.numpyToImageData(np.reshape(source,(480,640,1)),vtktype=vtk.VTK_FLOAT)
+
+    
 
     iterate = zip([im_depth_sim_vtk,real_depth_vtk,kuni_depth_vtk,source_sim],["depthsim","realdepth","kunidepth","sim"])
     for img,simtype in iterate:

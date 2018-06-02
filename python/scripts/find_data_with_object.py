@@ -9,14 +9,14 @@ from render import render_sim
 from director import vtkAll as vtk
 
 #
-path  = "/home/drc/DATA/chris_labelfusion/CORL2017/logs_test/"
+path  = "/media/drc/DATA/chris_labelfusion/CORL2017/logs_test/"
 paths = []
 for f in os.listdir(path):
 	if "2017" in f:
 		if "registration_result.yaml" in os.listdir(path+f):
 			with open(path+f+"/registration_result.yaml") as read:
 				transformYaml = yaml.load(read)
-				if len(transformYaml.keys()) ==3 or True:
+				if len(transformYaml.keys()) > 4:
 					paths.append((f,transformYaml.keys())) 
 for i in paths:
 	print i[0]
@@ -29,7 +29,7 @@ for i in paths:
 		elif "depth" in j:
 			os.system("cp " +  path+i[0]+"/images/"+j +" /home/drc/DATA/CORL2017/object_real/" + j.split("_")[0]+"_"+name+"_depth.png")
 '''
-
+'''
 view_height = 480
 view_width = 640
 renderer = vtk.vtkRenderer()
@@ -67,3 +67,4 @@ for i,j in paths:
 
 renWin.Render();
 interactor.Start();
+'''

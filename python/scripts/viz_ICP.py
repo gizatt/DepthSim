@@ -60,7 +60,7 @@ import pandas as pd
 
 
 
-path = '/media/drc/DATA/chris_labelfusion/logs_new/'
+path = '/media/drc/DATA/chris_labelfusion/logs_final/'
 files = os.listdir(path)
 real = glob.glob(path+"*realdepth*")
 mysim = glob.glob(path+"*depthsim*")
