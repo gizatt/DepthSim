@@ -9,6 +9,12 @@ import glob
 import scipy
 import time
 
+'''
+This file contains code to visualize a simulation of an RGBD stream 
+with the CNN postprocessing images to add droopout noise
+'''
+
+#viz method for prediction with generator
 def viz_predicted_depth(path,model_path,sleep =.1,filter_files= None,img_height=480,img_width=640,save_dir = None): #add file filter for specific logs
 	model = network.load_trained_model(weights_path = model_path)
 	samples = data.gen_samples(path,False,filter_files=filter_files)
@@ -54,12 +60,17 @@ def viz_predicted_depth(path,model_path,sleep =.1,filter_files= None,img_height=
 	plt.ioff() # due to infinite loop, this gets never called.
 	plt.show()
 
+
+#viz method for prediction from directory
 def viz_predicted_depth1(path,model_path,sleep =.1,filter_files= None,img_height=480,img_width=640,save_dir = None,viz=True): #add file filter for specific logs
 	model = network.load_trained_model(weights_path = model_path)
 	samples = gen_samples(path,False,filter_files=filter_files)
 	stack = np.zeros((1,img_height,img_width,1))
 
+	#threshold where NDP probabilities greater than it will be classified as NDP, 
+	#NDP probabilities lower will be instiatiated with correlated noise process
 	threshold = .5
+
 	ax1 = plt.subplot(1,4,1)
 	ax2 = plt.subplot(1,4,2)
 	ax3 = plt.subplot(1,4,3)
@@ -72,12 +83,17 @@ def viz_predicted_depth1(path,model_path,sleep =.1,filter_files= None,img_height
 	plt.ion()
 
 	for i in range(len(samples)):
+		#read images
 		rgb = misc.imread(samples[i][2])
 		depth = misc.imread(samples[i][1])
 		gtdepth = misc.imread(samples[i][0])/3500.
 		stack[0,:,:,0] = gtdepth
 		gt_copy = np.copy(gtdepth)
+
+		#predict NDP
 		predicted_prob_map = model.predict_on_batch(stack)
+		
+		#apply NDP to 'perfect sim'
 		network.apply_mask(predicted_prob_map,gtdepth,threshold)
 
 		im1.set_data(depth)
@@ -91,18 +107,12 @@ def viz_predicted_depth1(path,model_path,sleep =.1,filter_files= None,img_height
 			scipy.misc.toimage(depth, cmin=0, cmax=3500,mode = "I").save(save_dir+str(i)+"depth.png")
 			scipy.misc.toimage(gt_copy*3500, cmin=0, cmax=3500,mode = "I").save(save_dir+str(i)+"gtdepth.png")
 			scipy.misc.toimage(gtdepth*3500, cmin=0, cmax=3500,mode = "I").save(save_dir+str(i)+"predicted_depth.png")
-			# import imageio
-			# imageio.imwrite(save_dir+str(i)+"rgb.png",rgb)
-			# imageio.imwrite(save_dir+str(i)+"depth.png",depth)
-			# imageio.imwrite(save_dir+str(i)+"gtdepth.png",gt_copy*3500.)
-			# imageio.imwrite(save_dir+str(i)+"predicted_depth.png",gtdepth*3500.)
-
 		plt.pause(sleep)
 
 	plt.ioff() # due to infinite loop, this gets never called.
 	plt.show()
 
-
+#method for organizing files to process
 def gen_samples(directory,shuffle = True,filter_files=None):
     samples = []
     dirs = os.listdir(directory)

@@ -27,7 +27,7 @@ import noise
 from scipy.misc import toimage
 
 
-
+# This is the better model
 def create_model_2(img_height=480, img_width=640,channels=1):
    inputs = Input((img_height, img_width,channels))
    #crop = Cropping2D(cropping=((0, 0), (0, 0)), data_format=None)
@@ -70,6 +70,7 @@ def create_model_2(img_height=480, img_width=640,channels=1):
 
    return model
 
+#larger model - too slow 
 def create_model(img_height=480, img_width=640):
    #crop = Cropping2D(cropping=((0, 0), (0, 0)), data_format=None)
    inputs = Input((img_height, img_width,7))
@@ -128,8 +129,8 @@ def train():
    print('Fitting model...')
    model.fit_generator(train_generator, nb_epoch=100,steps_per_epoch=100, verbose=1, shuffle=True, callbacks=[model_checkpoint])
 
-def load_trained_model(weights_path="unet.hdf5"):
-   model = create_model_2(channels=1)
+def load_trained_model(weights_path):
+   model = create_model_2(channels=1)# only train on depth images
    model.load_weights(weights_path)
    return model
 
@@ -146,6 +147,7 @@ def apply_mask(mask,depth,threshold):
 
 def perlin_map(shape = (480,640),scale = 10.0,octaves = 6,persistence = 0.5,lacunarity = 2.0,base = 0):
     img = np.zeros(shape)
+    #this is a bottle neck for real time performance: this takes .3 seconds per image
     for i in range(shape[0]):
         for j in range(shape[1]):
             img[i][j] = noise.pnoise2(i/scale, 
