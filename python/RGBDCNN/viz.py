@@ -67,6 +67,8 @@ def viz_predicted_depth1(path,model_path,sleep =.1,filter_files= None,img_height
 	samples = gen_samples(path,False,filter_files=filter_files)
 	stack = np.zeros((1,img_height,img_width,1))
 
+	max_depth = 3500.
+
 	#threshold where NDP probabilities greater than it will be classified as NDP, 
 	#NDP probabilities lower will be instiatiated with correlated noise process
 	threshold = .5
@@ -78,7 +80,7 @@ def viz_predicted_depth1(path,model_path,sleep =.1,filter_files= None,img_height
 
 	im1 = ax1.imshow(misc.imread(samples[0][1]))
 	im2 = ax2.imshow(misc.imread(samples[0][0]))
-	im3 = ax3.imshow(misc.imread(samples[0][0])/3500.)
+	im3 = ax3.imshow(misc.imread(samples[0][0])/max_depth)
 	im4 = ax4.imshow(misc.imread(samples[0][2]))
 	plt.ion()
 
@@ -86,7 +88,7 @@ def viz_predicted_depth1(path,model_path,sleep =.1,filter_files= None,img_height
 		#read images
 		rgb = misc.imread(samples[i][2])
 		depth = misc.imread(samples[i][1])
-		gtdepth = misc.imread(samples[i][0])/3500.
+		gtdepth = misc.imread(samples[i][0])/max_depth
 		stack[0,:,:,0] = gtdepth
 		gt_copy = np.copy(gtdepth)
 
@@ -97,16 +99,16 @@ def viz_predicted_depth1(path,model_path,sleep =.1,filter_files= None,img_height
 		network.apply_mask(predicted_prob_map,gtdepth,threshold)
 
 		im1.set_data(depth)
-		im2.set_data(gtdepth*3500)
+		im2.set_data(gtdepth*max_depth)
 		im3.set_data(gt_copy)
 		im4.set_data(rgb)
 
 		if save_dir:
 
 			scipy.misc.toimage(rgb).save(save_dir+str(i)+"rgb.png")
-			scipy.misc.toimage(depth, cmin=0, cmax=3500,mode = "I").save(save_dir+str(i)+"depth.png")
-			scipy.misc.toimage(gt_copy*3500, cmin=0, cmax=3500,mode = "I").save(save_dir+str(i)+"gtdepth.png")
-			scipy.misc.toimage(gtdepth*3500, cmin=0, cmax=3500,mode = "I").save(save_dir+str(i)+"predicted_depth.png")
+			scipy.misc.toimage(depth, cmin=0, cmax=max_depth,mode = "I").save(save_dir+str(i)+"depth.png")
+			scipy.misc.toimage(gt_copy*max_depth, cmin=0, cmax=max_depth,mode = "I").save(save_dir+str(i)+"gtdepth.png")
+			scipy.misc.toimage(gtdepth*max_depth, cmin=0, cmax=max_depth,mode = "I").save(save_dir+str(i)+"predicted_depth.png")
 		plt.pause(sleep)
 
 	plt.ioff() # due to infinite loop, this gets never called.
