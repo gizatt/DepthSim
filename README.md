@@ -4,16 +4,20 @@ Dependancies: https://github.com/RobotLocomotion/director/tree/b1c795392630b4f60
 
 Folder Layout:
 
-RGBDCNN - main code for predicting Depth Dropout
+src: C++ files
 
-Models - saved CNN models from Depth dropout binary classification.
+python:
+    
+    RGBDCNN - main code for predicting Depth Dropout in Depth images
 
-notebooks - expirements and exploration
+    Models - saved CNN models from Depth dropout binary classification.
 
-render - graphics code for processesing and creating training data
+    notebooks - expirements and exploration
 
-common - support libraries
+    render - graphics code for processesing and creating training data
 
-scripts - random python progams to test/analyze results
+    common - support libraries
 
-examples- misc.
+    scripts - random python progams to test/analyze results
+
+    examples- misc.
