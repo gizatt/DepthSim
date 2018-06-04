@@ -228,7 +228,6 @@ for i,j in paths[1:50]:
     #real simulation
     source_sim = vnp.numpyToImageData(np.reshape(source,(480,640,1)),vtktype=vtk.VTK_FLOAT)
 
-    
 
     iterate = zip([im_depth_sim_vtk,real_depth_vtk,kuni_depth_vtk,source_sim],["depthsim","realdepth","kunidepth","sim"])
     for img,simtype in iterate:

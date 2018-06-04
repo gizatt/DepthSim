@@ -137,9 +137,6 @@ def apply_mask(mask,depth,threshold):
    epsilon = .05
    h,w = np.shape(depth)
    mask = np.reshape(mask,(h,w))
-   # plt.figure()
-   # plt.imshow(mask)
-   # plt.show()
    depth[mask>threshold]=0
    #img = np.random.random((480,640))
    img = sigmoid(perlin_map(scale=20.0,octaves = 7,base= np.random.randint(1000),lacunarity = 6.0))
