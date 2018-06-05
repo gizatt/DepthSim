@@ -136,5 +136,5 @@ def show_prob_map_dist(img):
 	plt.show()
 
 if __name__ == '__main__':
-	save_dir = "/media/drc/DATA/chris_labelfusion/RGBDCNNTest/"
-	viz_predicted_depth1(sleep =.05,filter_files = " 2017-06-16-19",path = "/media/drc/DATA/chris_labelfusion/RGBDCNN/",model_path = "../models/net_depth_seg_v1.hdf5")#,save_dir = save_dir)
+	save_dir = "./"
+	viz_predicted_depth1(sleep =.05,filter_files = " 2017-06-16-19",path = "./",model_path = "../models/net_depth_seg_v1.hdf5")#,save_dir = save_dir)

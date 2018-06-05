@@ -10,7 +10,7 @@ from keras.preprocessing import image
 import numpy as np
 import tensorflow as tf
 
-from dlutils import plot_image_batch_w_labels
+#from dlutils import plot_image_batch_w_labels
 
 #from utils.image_history_buffer import ImageHistoryBuffer
 
